@@ -4,6 +4,13 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",
+    "tsx": "^4.23.15",
     "typescript": "5"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "./run_bot.sh",
+    "cli": "node --env-file=.env --import tsx src/cli.ts",
+    "typecheck": "tsc -p ."
   }
 }

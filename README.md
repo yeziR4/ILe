@@ -48,15 +48,15 @@ Alongside TinyFish:
 ## Run it
 
 ```bash
-bun install
+npm install
 cp .env.example .env   # add your Photon project ID/secret and TinyFish key
-bun --env-file=.env src/index.ts
+npm start              # runs under Node; logs go to bot.log
 ```
 
 Then text your Photon line. To try the conversation without iMessage:
 
 ```bash
-bun --env-file=.env src/cli.ts "2 bed in Lekki under 6m" "more" "how much is a mini flat in Yaba?"
+npm run cli -- "2 bed in Lekki under 6m" "more" "how much is a mini flat in Yaba?"
 ```
 
 ## Files
