@@ -15,8 +15,8 @@ export const AREAS: Record<string, string[]> = {
   "Ibeju-Lekki": ["ibeju", "ibeju-lekki", "awoyaya"],
   "Victoria Island": ["victoria island", " vi ", "v.i", "oniru"],
   "Ikoyi": ["ikoyi"],
-  "Yaba": ["yaba", "akoka", "sabo"],
-  "Surulere": ["surulere", "ojuelegba", "aguda"],
+  "Yaba": ["yaba", "akoka", "sabo", "alagomeji", "adekunle", "onike", "iwaya", "jibowu", "fadeyi", "abule ijesha", "unilag"],
+  "Surulere": ["surulere", "ojuelegba", "aguda", "itire", "lawanson", "bode thomas", "adeniran ogunsanya"],
   "Ebute Metta": ["ebute metta", "ebute-metta"],
   "Ikeja": ["ikeja", "allen", "opebi", "alausa", "oregun"],
   "Ikeja GRA": ["ikeja gra"],
@@ -77,7 +77,11 @@ export function findAreas(text: string): string[] {
   const t = ` ${text.toLowerCase()} `;
   const hits = Object.entries(AREAS).filter(([, al]) => al.some((a) => t.includes(a.startsWith(" ") ? a : a))).map(([k]) => k);
   // "Lekki Phase 1" implies we don't also need the broader "Lekki" bucket.
-  return hits.includes("Lekki Phase 1") ? hits.filter((h) => h !== "Lekki") : hits;
+  const out = hits.includes("Lekki Phase 1") ? hits.filter((h) => h !== "Lekki") : hits;
+  // "Mainland" / "Island" with no specific area: use the busiest areas on that side.
+  if (!out.length && /\bmainland\b/.test(t)) return ["Yaba", "Surulere", "Ikeja"];
+  if (!out.length && /\bisland\b/.test(t)) return ["Lekki", "Ajah", "Victoria Island"];
+  return out;
 }
 
 export function parseWant(text: string): Want | null {
