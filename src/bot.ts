@@ -216,7 +216,7 @@ export async function handle(chat: Chat, text: string) {
     }
     return;
   }
-  if (/^(watch|alert|notify|keep (looking|searching)|tell me|text me)\b/.test(low)) {
+  if (/^(watch|alert|notify|keep (looking|searching)|tell me|text me)\b/.test(low) || /^(yes|yeah|ok|okay|sure)\b.*\b(keep (looking|searching)|watch|text me|notify|alert)\b/.test(low)) {
     const w = parseWant(msg) ?? s.want;
     if (!w) return chat.send(t("What should I watch for? e.g. \"watch 2 bed Lekki under 6m\""));
     addWatch(chat.id, w, s.seen ?? []);
