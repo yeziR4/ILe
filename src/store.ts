@@ -4,9 +4,9 @@ import type { Listing } from "./listings";
 import type { Want } from "./lagos";
 
 const FILE = process.env.STORE_FILE ?? "data/store.json";
-interface Session { want?: Want; results?: Listing[]; cursor?: number; seen?: string[] }
+interface Session { want?: Want; results?: Listing[]; cursor?: number; seen?: string[]; lastVisit?: number; pending?: "watch" | "show-new"; fresh?: Listing[] }
 export interface Watch { chatId: string; want: Want; seen: string[]; created: number; lastRun?: number }
-interface Store { sessions: Record<string, Session>; watches: Watch[] }
+interface Store { sessions: Record<string, Session>; watches: Watch[]; handled?: string[] }
 
 let db: Store = { sessions: {}, watches: [] };
 try {
@@ -33,3 +33,14 @@ export function removeWatches(chatId: string): number {
 }
 export const allWatches = () => db.watches;
 export function markSeen(w: Watch, ids: string[]) { w.seen = [...new Set([...w.seen, ...ids])]; w.lastRun = Date.now(); flush(); }
+
+/** True if this inbound message id was already handled (Spectrum replays recent messages after a reconnect). */
+export function seenMessage(id: string): boolean {
+  db.handled ??= [];
+  if (db.handled.includes(id)) return true;
+  db.handled.push(id);
+  if (db.handled.length > 500) db.handled = db.handled.slice(-500);
+  flush();
+  return false;
+}
+export const hasWatch = (chatId: string) => db.watches.some((w) => w.chatId === chatId);

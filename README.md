@@ -13,8 +13,9 @@ Built with **[Photon Spectrum](https://photon.codes)** (iMessage) and **[TinyFis
 | `2 bed in Lekki under 6m` | The 3 best fresh TikTok listings: price, **move-in cost** (rent + agency, legal, caution), when it was posted, the agent's phone/WhatsApp, warnings. Each listing's TikTok link unfurls into a video preview. About 2 minutes later it follows up with a price check against Nigeria Property Centre. |
 | `how much is a 2 bed in Lekki?` | A market pulse built from this week's listings: how many were posted, typical asking rent and range, how many hide the price, the cheapest one. |
 | any TikTok listing link | A breakdown of that listing: price, move-in cost, the agent's contact from their bio, red flags, a fair-price verdict. |
-| `watch` | It saves the search and **texts you first** (with confetti 🎉) when a matching listing is posted. `stop` cancels. |
-| `more`, `1`, `2`… | The next results, or full details on one listing. |
+| `yes` (after results) | Ilé asks before it starts watching. Once you agree it stays quiet, re-checks TikTok on a schedule, and **texts you first** (with confetti 🎉) only when a new match is posted. `stop` cancels. |
+| `hi` (a day later) | It remembers your last search, re-runs it and tells you what's new since you last checked. |
+| `more`, `1`, `2`… | The next results, or full details on one listing plus a **drafted WhatsApp message to the agent**. Ilé never sends anything for you: you tap it, check it and send it yourself. |
 
 ## How TinyFish does the work
 
@@ -38,6 +39,14 @@ Alongside TinyFish:
 - **rich links**, so each TikTok listing unfurls as a video card
 - a **confetti effect** on new-listing alerts
 - **proactive messages**: watches re-check on a schedule and text the user first
+
+## Memory, timing and trust
+
+- **Remembers you:** your last search, what you've already seen, and your watches are kept per conversation, so "hi" tomorrow picks up where you left off.
+- **Texts at the right moment:** watches only alert on listings posted in the last 3 days that you haven't seen. If nothing is new, it stays quiet.
+- **Asks first:** it asks before watching, and drafts agent messages for you to send rather than sending them.
+- **Never fakes a source:** every listing links to the real TikTok post; prices read from the video summary are marked "confirm with the agent"; if the property-site check fails it says so instead of guessing.
+- **Survives drops:** the Photon stream reconnects automatically and replayed messages are de-duplicated.
 
 ## Lagos-specific logic
 

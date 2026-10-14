@@ -2,7 +2,7 @@
 import { findListings, oembed, agentProfiles, resolveTikTok, videoId, postedDaysAgo, dealOf, type Listing } from "./listings";
 import { fmt, moveIn, parseWant, readPrice, findAreas, kindOf, phonesIn, waLink, type Want } from "./lagos";
 import { marketPrice, verdict, type Market } from "./market";
-import { addWatch, removeWatches, getSession, saveSession } from "./store";
+import { addWatch, removeWatches, getSession, saveSession, hasWatch } from "./store";
 import { weekPulse, pulseText } from "./pulse";
 
 export type Item = { text: string } | { link: string } | { celebrate: string };
@@ -32,8 +32,8 @@ const cleanCaption = (c: string) => c.replace(/#[\p{L}\p{N}_]+/gu, "").replace(/
 
 function contactLine(l: Listing): string | undefined {
   const phone = l.phones[0] ?? l.agent?.bioPhones[0];
-  if (phone) return `📞 ${phone.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")} · WhatsApp: ${waLink(phone)}`;
-  if (l.agent?.whatsapp) return `💬 WhatsApp: ${l.agent.whatsapp}`;
+  if (phone) return `📞 ${phone.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")} (call or WhatsApp)`;
+  if (l.agent?.whatsapp) return "💬 WhatsApp link in their TikTok bio";
   return "📞 number's in their TikTok bio";
 }
 
@@ -67,20 +67,31 @@ async function sendPage(chat: Chat, listings: Listing[], from: number) {
     await chat.send(t(card(page[i], from + i)), link(page[i].url));
   }
   const left = listings.length - (from + page.length);
-  await chat.send(t(left > 0
-    ? `Reply "more" for ${Math.min(3, left)} more, a number (like "1") for details, or "watch" and I'll text you when new ones drop.`
-    : `That's everything fresh right now. Say "watch" and I'll text you the moment a new one is posted.`));
+  const s = getSession(chat.id);
+  const offerWatch = from === 0 && !hasWatch(chat.id);
+  if (offerWatch) { s.pending = "watch"; saveSession(chat.id, s); }
+  await chat.send(t([
+    left > 0 ? `Reply "more" for ${Math.min(3, left)} more, or a number (like "1") for details and a message to the agent.` : "That's everything fresh right now.",
+    offerWatch ? "Want me to keep looking for you? Reply \"yes\" and I'll text you only when a new match is posted." : "",
+  ].filter(Boolean).join("\n\n")));
+}
+
+function checkTarget(w: Want, listings: Listing[]) {
+  const kind = w.kind !== "any" ? w.kind : listings.find((l) => l.kind && l.rent)?.kind;
+  const area = w.areas[0] ?? listings[0]?.areas[0];
+  return kind && area && w.deal === "rent" ? { kind, area } : null;
 }
 
 async function marketFollowUp(chat: Chat, w: Want, listings: Listing[]) {
-  const area = w.areas[0];
-  if (!area || w.kind === "any" || w.deal !== "rent") return;
-  const m = await marketPrice(area, w.kind).catch(() => null);
-  if (!m) return;
-  const lines = [`📊 Market check: ${plural(m.count, `${w.kind} listing`)} in ${area} on ${m.source} go for ${fmt(m.low)}–${fmt(m.high)} (typical ${fmt(m.median)}).`];
+  const target = checkTarget(w, listings);
+  if (!target) return;
+  const { kind, area } = target;
+  const m = await marketPrice(area, kind).catch(() => null);
+  if (!m) return chat.send(t(`📊 I couldn't get a clean price comparison for ${kind}s in ${area} from the property sites right now, so I won't guess.`));
+  const lines = [`📊 Price check: ${plural(m.count, `${kind} listing`)} in ${area} on ${m.source} ask ${fmt(m.low)}–${fmt(m.high)} (typical ${fmt(m.median)}).`];
   listings.slice(0, 3).forEach((l, i) => {
     const p = l.rent;
-    if (p) lines.push(`${i + 1}️⃣ ${fmt(p)}: ${verdict(p, m)}`);
+    if (p && l.kind === kind) lines.push(`${i + 1}️⃣ ${fmt(p)}: ${verdict(p, m)}`);
   });
   await chat.send(t(lines.join("\n")));
 }
@@ -100,8 +111,9 @@ export async function runSearch(chat: Chat, w: Want, opts: { quietIfEmpty?: bool
   const skipped = [overBudget && `${overBudget} over budget`, otherDeals && `${otherDeals} ${w.deal === "rent" ? "shortlets/sales" : "other listings"}`].filter(Boolean).join(", ");
   await chat.send(t(`🏠 Found ${plural(listings.length, "fresh listing")} for ${describeWant(w)}, all posted on TikTok in the last 30 days${skipped ? ` (skipped ${skipped})` : ""}. Best ${Math.min(3, listings.length)}:`));
   await sendPage(chat, listings, 0);
-  if (w.areas[0] && w.kind !== "any" && w.deal === "rent") {
-    await chat.send(t(`📊 Checking what similar ${w.kind}s in ${w.areas[0]} actually go for on property sites… (about 2 min)`));
+  const target = checkTarget(w, listings);
+  if (target) {
+    await chat.send(t(`📊 Checking what ${target.kind}s in ${target.area} actually go for on property sites… (about 2 min)`));
     marketFollowUp(chat, w, listings).catch(() => {});
   }
 }
@@ -148,10 +160,41 @@ export async function handle(chat: Chat, text: string) {
     await chat.typing(() => checkLink(chat, tiktok[0]));
     return;
   }
-  if (/^(hi|hello|hey|help|start|menu|\?)\b/.test(low) && !parseWant(msg)?.areas.length) {
+  if (/^(yes|yeah|yh|yep|ok|okay|sure|please|pls|go ahead)\b/.test(low) && s.pending) {
+    const what = s.pending;
+    s.pending = undefined;
+    saveSession(chat.id, s);
+    if (what === "watch" && s.want) {
+      addWatch(chat.id, s.want, s.seen ?? []);
+      await chat.ack();
+      return chat.send(t(`👀 Done. I'm watching for new ${describeWant(s.want)}. I'll stay quiet until a new one is posted, then text you straight away. Say "stop" anytime.`));
+    }
+    if (what === "show-new" && s.fresh?.length) {
+      const fresh = s.fresh;
+      s.results = fresh; s.cursor = 3; s.seen = [...new Set([...(s.seen ?? []), ...fresh.map((l) => l.id)])]; s.fresh = undefined;
+      saveSession(chat.id, s);
+      return sendPage(chat, fresh, 0);
+    }
+  }
+  if (/^(hi+|hello|hey+|help|start|menu|good (morning|afternoon|evening)|\?)\b/.test(low) && !parseWant(msg)?.areas.length) {
+    const away = s.lastVisit ? Date.now() - s.lastVisit : 0;
+    s.lastVisit = Date.now();
+    saveSession(chat.id, s);
+    if (s.want && away > 30 * 60_000) {
+      // Remember them: re-run their last search and say what changed.
+      const { listings } = await chat.typing(() => findListings(s.want!, 7));
+      const fresh = listings.filter((l) => !(s.seen ?? []).includes(l.id));
+      s.fresh = fresh;
+      s.pending = fresh.length ? "show-new" : undefined;
+      saveSession(chat.id, s);
+      return chat.send(t(fresh.length
+        ? `Welcome back 👋 Still looking for ${describeWant(s.want)}? ${plural(fresh.length, "new listing")} since you last checked. Want to see them? Reply "yes".`
+        : `Welcome back 👋 Nothing new for ${describeWant(s.want)} since you last checked. Tell me if your search has changed.`));
+    }
     await chat.send(t(HELP));
     return;
   }
+  s.lastVisit = Date.now();
   if (/^(more|next|show more)\b/.test(low)) {
     if (!s.results?.length) return chat.send(t("Tell me what you're looking for first, e.g. \"2 bed in Lekki under 6m\"."));
     const from = s.cursor ?? 3;
@@ -165,6 +208,12 @@ export async function handle(chat: Chat, text: string) {
     const l = s.results[Number(num[1]) - 1];
     if (!l) return chat.send(t(`I only have ${s.results.length} results right now.`));
     await chat.send(t(`${card(l, Number(num[1]) - 1)}\n\nCaption: “${cleanCaption(l.caption).slice(0, 300)}”\n\nTip: inspect before you pay anything, and ask for the agency, legal and caution fees in writing.`), link(l.url));
+    const phone = l.phones[0] ?? l.agent?.bioPhones[0];
+    if (phone) {
+      const draft = `Hi, I saw your ${l.kind ?? "listing"}${l.areas[0] ? ` in ${l.areas[0]}` : ""} on TikTok (${l.url}). Is it still available, and when can I inspect?`;
+      await chat.send(t("✍️ I drafted a message to the agent. I won't send anything for you: tap to open it in WhatsApp, check it, and send it yourself."),
+        link(`https://wa.me/234${phone.replace(/^0/, "")}?text=${encodeURIComponent(draft)}`));
+    }
     return;
   }
   if (/^(watch|alert|notify|keep (looking|searching)|tell me|text me)\b/.test(low)) {
